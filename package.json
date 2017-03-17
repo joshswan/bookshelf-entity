@@ -29,7 +29,8 @@
     "lint": "eslint index.js"
   },
   "dependencies": {
-    "json-entity": "^0.1.0"
+    "json-entity": "^0.1.0",
+    "lodash": "^4.17.4"
   },
   "devDependencies": {
     "eslint": "^3.14.1",
