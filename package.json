@@ -1,0 +1,39 @@
+{
+  "name": "bookshelf-entity",
+  "version": "0.1.0",
+  "description": "Bookshelf plugin for controlling/formatting model output using json-entity",
+  "main": "index.js",
+  "repository": "joshswan/bookshelf-entity",
+  "bugs": "https://github.com/joshswan/bookshelf-entity/issues",
+  "author": "Josh Swan <josh@sportifik.com>",
+  "license": "MIT",
+  "keywords": [
+    "json",
+    "entity",
+    "api",
+    "response",
+    "grape",
+    "mask",
+    "whitelist",
+    "formatting",
+    "bookshelf",
+    "model",
+    "serialization"
+  ],
+  "files": [
+    "index.js",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "lint": "eslint index.js"
+  },
+  "dependencies": {
+    "json-entity": "^0.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^3.14.1",
+    "eslint-config-airbnb-base": "^11.0.1",
+    "eslint-plugin-import": "^2.2.0"
+  }
+}
