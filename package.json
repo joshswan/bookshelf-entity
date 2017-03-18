@@ -1,6 +1,6 @@
 {
   "name": "bookshelf-entity",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Bookshelf plugin for controlling/formatting model output using json-entity",
   "main": "index.js",
   "repository": "joshswan/bookshelf-entity",
