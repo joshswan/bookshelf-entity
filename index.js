@@ -107,7 +107,7 @@ module.exports = (bookshelf) => {
      * models that were not included in output.
      */
     toJSON(...args) {
-      return CollectionBase.prototype.toJSON.apply(this, args).filter(model => !!model);
+      return CollectionBase.prototype.toJSON.apply(this, args).filter(Boolean);
     },
   });
 };

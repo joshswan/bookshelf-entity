@@ -569,9 +569,9 @@ js-yaml@^3.5.1:
     argparse "^1.0.7"
     esprima "^3.1.1"
 
-json-entity@^0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/json-entity/-/json-entity-0.1.0.tgz#b65b761c20ba68d05507522ca719b019dc8bb6a2"
+json-entity@^0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/json-entity/-/json-entity-0.2.0.tgz#683a1d165518088014a1801fbf481cd4634b0415"
   dependencies:
     lodash "^4.17.4"
 
