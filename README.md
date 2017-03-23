@@ -1,7 +1,7 @@
 # bookshelf-entity
 [![NPM Version][npm-image]][npm-url] [![Build Status][build-image]][build-url] [![Dependency Status][depstat-image]][depstat-url] [![Dev Dependency Status][devdepstat-image]][devdepstat-url]
 
-Bookshelf plugin for controlling and formatting model serialization/output using [json-entity](https://github.com/joshswan/json-entity). This plugin patches `toJSON` to require an Entity to be specified for serialization, and Entities only allow property whitelisting, you have very clear and detailed control over exactly which properties are exposed from your models. Entities also have a wealth of other formatting/modification options so you can make sure your API responses are perfect every time.
+Bookshelf plugin for controlling and formatting model serialization/output using [json-entity](https://github.com/joshswan/json-entity). This plugin patches `toJSON` on models and collections to require an Entity to be specified for serialization, and Entities only allow property whitelisting, you have very clear and detailed control over exactly which properties are exposed from your models. Entities also have a wealth of other formatting/modification options so you can make sure your API responses are perfect every time.
 
 ## Installation
 
