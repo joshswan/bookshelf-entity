@@ -45,8 +45,8 @@ module.exports = (bookshelf) => {
      * Use specified entity to serialize model data. Only whitelisted/exposed properties specified
      * in the Entity will be exposed in the output. The options obect will be passed through to any
      * if/value functions and nested Entities.
-     * @param {Entity}  entity  Entity to use for serialization
-     * @param {Object}  options Options to pass to Entities and their functions
+     * @param  {Entity} entity  Entity to use for serialization
+     * @param  {Object} options Options to pass to Entities and their functions
      * @return {Object}
      */
     represent(entity, options = {}) {
@@ -102,12 +102,44 @@ module.exports = (bookshelf) => {
 
   bookshelf.Collection = CollectionBase.extend({
     /**
-     * Override collection.toJSON to remove falsy values from resulting array. Since JSON.stringify
-     * converts `undefined` to `null` when in an array, make sure we don't leak any info about
-     * models that were not included in output.
+     * Use specified entity to serialize collection data. Only whitelisted/exposed properties
+     * specified in the Entity will be exposed in the outputted objects. The options obect will be
+     * passed through to any if/value functions and nested Entities.
+     * @param  {Entity} entity  Entity to use for serialization
+     * @param  {Object} options Options to pass to Entities and their functions
+     * @return {Object}
      */
-    toJSON(...args) {
-      return CollectionBase.prototype.toJSON.apply(this, args).filter(Boolean);
+    represent(entity, options = {}) {
+      // Output nothing if no entity specified
+      if (!entity) return [];
+
+      // Serialize collection and remove any falsy values from the resulting array. Since
+      // JSON.stringify convers `undefined` to `null` when in an array, we want to make sure we
+      // don't leak any info about models that were not included in output.
+      const collection = CollectionBase.prototype.toJSON.call(this, options).filter(Boolean);
+
+      return entity.represent(collection, options);
+    },
+
+    /**
+     * Override collection.toJSON to apply Entity.represent recursively from the collection level.
+     * Since the first model to serialize sets the root entity flag, subsequent models would have
+     * all attributes exposed due to the flag in the shared options object. Therefore, we block
+     * models from invoking represent on themselves and instead apply represent to the entire
+     * collection.
+     * @param  {Object} options Options to be passed to Entities and their functions
+     * @return {Array}
+     */
+    toJSON(options = {}) {
+      // Ensure options is an object
+      const opts = isObject(options) ? options : {};
+
+      // Set root entity flag to prevent models from invoking represent on themselves as we'll be
+      // applying the entity from the collection level
+      opts.entityRoot = true;
+
+      // Call represent using the specified entity or default entity
+      return this.represent(opts.entity || this.model.prototype.defaultEntity, opts);
     },
   });
 };
