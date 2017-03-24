@@ -113,6 +113,24 @@ module.exports = (bookshelf) => {
       // Output nothing if no entity specified
       if (!entity) return [];
 
+      // Perform safety check on relations if entitySafeMode enabled
+      if (this.model.prototype.entitySafeMode && !options.shallow) {
+        // Loop through all models
+        this.models.forEach((model) => {
+          // Loop through relations set on model
+          Object.keys(model.relations).forEach((relation) => {
+            // Check for exposed properties matching relation
+            entity.properties.forEach((property) => {
+              // Throw an error if a "using" option isn't specified as this could lead to unintended
+              // data leaks since the entire relation would be exposed!
+              if (relation === property.key && !property.using) {
+                throw new Error(`Entity has an exposed relation "${relation}" that does not have a "using" option specified!`);
+              }
+            });
+          });
+        });
+      }
+
       // Serialize collection and remove any falsy values from the resulting array. Since
       // JSON.stringify convers `undefined` to `null` when in an array, we want to make sure we
       // don't leak any info about models that were not included in output.
@@ -134,12 +152,19 @@ module.exports = (bookshelf) => {
       // Ensure options is an object
       const opts = isObject(options) ? options : {};
 
-      // Set root entity flag to prevent models from invoking represent on themselves as we'll be
-      // applying the entity from the collection level
-      opts.entityRoot = true;
+      // Check for root entity flag
+      if (!opts.entityRoot) {
+        // Set flag to avoid models attempting to call represent individually as we'll apply the
+        // entity from the collection level to ensure coverage
+        opts.entityRoot = true;
 
-      // Call represent using the specified entity or default entity
-      return this.represent(opts.entity || this.model.prototype.defaultEntity, opts);
+        // Call represent using the specified entity or default entity
+        return this.represent(opts.entity || this.model.prototype.defaultEntity, opts);
+      }
+
+      // Return normal serialize output for nested collections (represent will be recursively
+      // applied from the root level anyway)
+      return CollectionBase.prototype.toJSON.call(this, opts);
     },
   });
 };
