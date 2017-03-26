@@ -1,7 +1,7 @@
 # bookshelf-entity
 [![NPM Version][npm-image]][npm-url] [![Build Status][build-image]][build-url] [![Dependency Status][depstat-image]][depstat-url] [![Dev Dependency Status][devdepstat-image]][devdepstat-url]
 
-Bookshelf plugin for controlling and formatting model serialization/output using [json-entity](https://github.com/joshswan/json-entity). This plugin patches `toJSON` on models and collections to require an Entity to be specified for serialization, and Entities only allow property whitelisting, you have very clear and detailed control over exactly which properties are exposed from your models. Entities also have a wealth of other formatting/modification options so you can make sure your API responses are perfect every time.
+Bookshelf plugin for controlling and formatting model serialization/output using [json-entity](https://github.com/joshswan/json-entity). This plugin adds `present`/`render` (synonymous) methods to models and collections, both of which require an Entity to serialize the model. Since Entities only allow property whitelisting, you have very clear and detailed control over exactly which properties are exposed from your models. These methods also attempt to load any missing relations on your models to keep your model representations aligned. Entities also have a wealth of other formatting/modification options so you can make sure your API responses are perfect every time.
 
 ## Installation
 
@@ -27,10 +27,72 @@ const UserEntity = bookshelf.Entity.extend({
     return `${user.firstName} ${user.lastName}`;
   },
   location: { as: 'hometown', if: (user, options) => options.includeLocation },
+  address: { using: AddressEntity }, // AddressEntity not shown
 });
 ```
 
-Specify Entity when calling `toJSON`:
+Specify Entity when calling `present` or `render`:
+```javascript
+const User = Bookshelf.Model.extend({
+  tableName: 'users',
+
+  address() {
+    return this.hasOne(Address);
+  },
+});
+
+const user = User.forge({
+  id: 1,
+  firstName: 'Josh',
+  lastName: 'Swan',
+  location: 'San Francisco, CA',
+  // Address not loaded
+});
+
+user.present({ entity: UserEntity }).then((obj) => {
+  /*
+      {
+        id: 1,
+        firstName: "Josh",
+        lastName: "Swan",
+        fullName: "Josh Swan",
+        address: {
+          line1: "123 Something St",
+          city: "San Francisco",
+          state: "CA",
+          zip: "94104"
+        }
+      }
+   */
+});
+
+user.render({ entity: UserEntity }, { includeLocation: true }).then((obj) => {
+  /*
+      {
+        id: 1,
+        firstName: "Josh",
+        lastName: "Swan",
+        fullName: "Josh Swan",
+        hometown: "San Francisco, CA",
+        address: {
+          line1: "123 Something St",
+          city: "San Francisco",
+          state: "CA",
+          zip: "94104"
+        }
+      }
+   */
+});
+```
+
+Optional: You can also specify a `defaultEntity` on your model as a fallback when `present`/`render` is invoked without specifying an Entity:
+```javascript
+const User = bookshelf.Model.extend({
+  defaultEntity: UserEntity,
+});
+```
+
+For a quick synchronous representation, you can also call the `represent` method directly (it is called by `present`/`render` after loading any missing relations):
 ```javascript
 const user = User.forge({
   id: 1,
@@ -39,7 +101,7 @@ const user = User.forge({
   location: 'San Francisco, CA',
 });
 
-user.toJSON({ entity: UserEntity });
+user.represent(UserEntity, options);
 /*
     {
       id: 1,
@@ -48,24 +110,6 @@ user.toJSON({ entity: UserEntity });
       fullName: "Josh Swan",
     }
  */
-
-user.toJSON({ entity: UserEntity }, { includeLocation: true });
-/*
-    {
-      id: 1,
-      firstName: "Josh",
-      lastName: "Swan",
-      fullName: "Josh Swan",
-      hometown: "San Francisco, CA"
-    }
- */
-```
-
-Optional: You can also specify a `defaultEntity` on your model as a fallback when `toJSON` is invoked without specifying an Entity:
-```javascript
-const User = bookshelf.Model.extend({
-  defaultEntity: UserEntity,
-});
 ```
 
 ## See [json-entity](https://github.com/joshswan/json-entity) for all available options

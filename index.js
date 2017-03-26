@@ -7,7 +7,55 @@
  */
 
 const Entity = require('json-entity');
+const extend = require('lodash/extend');
+const has = require('lodash/has');
 const isObject = require('lodash/isObject');
+
+/**
+ * Recursively auto-detect unloaded relations based on exposed properties on the provided entity.
+ * Note: Depending on how your relationships are defined on the model, this may or may not work.
+ * @param  {Entity} entity      Entity specified for representing the model instance
+ * @param  {Model}  model       The model instance
+ * @param  {String} [prefix=''] Relation nesting prefix for recursion
+ * @return {Array}              Array of relations that should be loaded
+ */
+function detectRelationsToLoad(entity, model, prefix = '') {
+  if (!entity) return [];
+
+  return entity.properties.reduce((relations, property) => {
+    const { key } = property;
+
+    if (!model || (!has(model.attributes, key) && !has(model.relations, key) && model[key])) {
+      return [...relations, `${prefix}${key}`, ...detectRelationsToLoad(model.using, model && model.relations[key], `${key}.`)];
+    }
+
+    return relations;
+  }, []).filter(Boolean);
+}
+
+/**
+ * Recursively checks models for relations that are exposed on the provided entity without a
+ * "using" option specified to control the exposed properties of the relation. This safety check
+ * can be disabled by setting `model.prototype.entitySafeMode` to `false`
+ * @param  {Entity} entity Entity specified for representing the model instance
+ * @param  {Model}  model  The model instance
+ * @throws {Error}
+ */
+function performSafetyCheck(entity, model) {
+  Object.keys(model.relations || {}).forEach((relation) => {
+    // Check for exposed properties matching relation
+    entity.properties.forEach((property) => {
+      // Throw an error if a "using" option isn't specified as this could lead to unintended
+      // data leaks since the entire relation would be exposed!
+      if (relation === property.key && !property.using) {
+        throw new Error(`Entity has an exposed relation "${relation}" that does not have a "using" option specified!`);
+      }
+
+      // Perform safety check on relations recursively
+      performSafetyCheck(property.using, model.relations[relation]);
+    });
+  });
+}
 
 module.exports = (bookshelf) => {
   const CollectionBase = bookshelf.Collection;
@@ -42,6 +90,38 @@ module.exports = (bookshelf) => {
     entitySafeMode: true,
 
     /**
+     * Serialize model using entity specified in options object or this.defaultEntity. If no Entity
+     * is specified, nothing will be exposed, thus providing more control over output than toJSON.
+     * Note: This method returns a Promise and will automatically attempt to detect and load any
+     * unloaded and exposed relations. Safe mode is also disabled by default so an error will be
+     * thrown if the model is missing any attributes/relations that are supposed to be exposed.
+     * @param  {Object}  [options={}] Options to be passed to Entities and their functions
+     * @return {Promise}
+     */
+    present(options = {}) {
+      // Ensure options is an object
+      const opts = isObject(options) ? options : {};
+      const entity = opts.entity || opts.with || opts.using || this.defaultEntity;
+
+      if (!entity) return Promise.resolve(undefined);
+
+      return Promise.resolve().then(() => {
+        const relations = detectRelationsToLoad(entity, this);
+
+        return relations ? this.load(relations) : this;
+      }).then(() => this.represent(entity, extend({ safe: false }, opts)));
+    },
+
+    /**
+     * Alias for present method
+     * @param  {Object}  [options={}] Options to be passed to Entities and their functions
+     * @return {Promise}
+     */
+    render(options = {}) {
+      return this.present(options);
+    },
+
+    /**
      * Use specified entity to serialize model data. Only whitelisted/exposed properties specified
      * in the Entity will be exposed in the output. The options obect will be passed through to any
      * if/value functions and nested Entities.
@@ -54,53 +134,46 @@ module.exports = (bookshelf) => {
       if (!entity) return undefined;
 
       // Perform safety check on relations if entitySafeMode enabled
-      if (this.entitySafeMode && !options.shallow) {
-        // Loop through relations set on model
-        Object.keys(this.relations).forEach((relation) => {
-          // Check for exposed properties matching relation
-          entity.properties.forEach((property) => {
-            // Throw an error if a "using" option isn't specified as this could lead to unintended
-            // data leaks since the entire relation would be exposed!
-            if (relation === property.key && !property.using) {
-              throw new Error(`Entity has an exposed relation "${relation}" that does not have a "using" option specified!`);
-            }
-          });
-        });
-      }
+      if (this.entitySafeMode && !options.shallow) performSafetyCheck(entity, this);
 
       return entity.represent(ModelBase.prototype.toJSON.call(this, options), options);
-    },
-
-    /**
-     * Override standard toJSON method to use model.represent. The Entity to be used for
-     * serialization can be specified in the options object, or it will use defaultEntity as a
-     * fallback if it is set on the model. If no Entity is specified, nothing will be exposed for
-     * security reasons. The options object will be passed directly to the Entity's represent
-     * function, which will pass it along to any if/value functions and nested Entities.
-     * @param  {Object} options Options to be passed to Entities and their functions
-     * @return {Object}
-     */
-    toJSON(options = {}) {
-      // Ensure options is an object
-      const opts = isObject(options) ? options : {};
-
-      // Check for root entity flag
-      if (!opts.entityRoot) {
-        // Set flag to avoid calling represent on relations (Bookshelf recursively calls toJSON on
-        // nested relations leading to issues if represent is called at each level)
-        opts.entityRoot = true;
-
-        // Call represent using the specified entity or default entity
-        return this.represent(opts.entity || this.defaultEntity, opts);
-      }
-
-      // Return all attributes for nested relations (represent will be recursively applied from
-      // the root model anyway)
-      return ModelBase.prototype.toJSON.call(this, opts);
     },
   });
 
   bookshelf.Collection = CollectionBase.extend({
+    /**
+     * Serialize collection using entity specified in options object or the model's defaultEntity.
+     * If no Entity is specified, any empty array will be returned, thus providing more control
+     * over output than toJSON. Note: This method returns a Promise and will automatically attempt
+     * to detect and load any unloaded and exposed relations. Safe mode is also disabled by default
+     * so an error will be thrown if any of the models are missing any attributes/relations that
+     * are supposed to be exposed.
+     * @param  {Object}  [options={}] Options to be passed to Entities and their functions
+     * @return {Promise}
+     */
+    present(options = {}) {
+      // Ensure options is an object
+      const opts = isObject(options) ? options : {};
+      const entity = opts.entity || opts.with || opts.using || this.model.prototype.defaultEntity;
+
+      if (!entity || !this.size()) return Promise.resolve([]);
+
+      return Promise.resolve().then(() => {
+        const relations = detectRelationsToLoad(entity, this.first());
+
+        return relations ? this.load(relations) : this;
+      }).then(() => this.represent(entity, extend({ safe: false }, opts)));
+    },
+
+    /**
+     * Alias for present method
+     * @param  {Object}  [options={}] Options to be passed to Entities and their functions
+     * @return {Promise}
+     */
+    render(options = {}) {
+      return this.present(options);
+    },
+
     /**
      * Use specified entity to serialize collection data. Only whitelisted/exposed properties
      * specified in the Entity will be exposed in the outputted objects. The options obect will be
@@ -116,55 +189,10 @@ module.exports = (bookshelf) => {
       // Perform safety check on relations if entitySafeMode enabled
       if (this.model.prototype.entitySafeMode && !options.shallow) {
         // Loop through all models
-        this.models.forEach((model) => {
-          // Loop through relations set on model
-          Object.keys(model.relations).forEach((relation) => {
-            // Check for exposed properties matching relation
-            entity.properties.forEach((property) => {
-              // Throw an error if a "using" option isn't specified as this could lead to unintended
-              // data leaks since the entire relation would be exposed!
-              if (relation === property.key && !property.using) {
-                throw new Error(`Entity has an exposed relation "${relation}" that does not have a "using" option specified!`);
-              }
-            });
-          });
-        });
+        this.models.forEach(model => performSafetyCheck(entity, model));
       }
 
-      // Serialize collection and remove any falsy values from the resulting array. Since
-      // JSON.stringify convers `undefined` to `null` when in an array, we want to make sure we
-      // don't leak any info about models that were not included in output.
-      const collection = CollectionBase.prototype.toJSON.call(this, options).filter(Boolean);
-
-      return entity.represent(collection, options);
-    },
-
-    /**
-     * Override collection.toJSON to apply Entity.represent recursively from the collection level.
-     * Since the first model to serialize sets the root entity flag, subsequent models would have
-     * all attributes exposed due to the flag in the shared options object. Therefore, we block
-     * models from invoking represent on themselves and instead apply represent to the entire
-     * collection.
-     * @param  {Object} options Options to be passed to Entities and their functions
-     * @return {Array}
-     */
-    toJSON(options = {}) {
-      // Ensure options is an object
-      const opts = isObject(options) ? options : {};
-
-      // Check for root entity flag
-      if (!opts.entityRoot) {
-        // Set flag to avoid models attempting to call represent individually as we'll apply the
-        // entity from the collection level to ensure coverage
-        opts.entityRoot = true;
-
-        // Call represent using the specified entity or default entity
-        return this.represent(opts.entity || this.model.prototype.defaultEntity, opts);
-      }
-
-      // Return normal serialize output for nested collections (represent will be recursively
-      // applied from the root level anyway)
-      return CollectionBase.prototype.toJSON.call(this, opts);
+      return entity.represent(CollectionBase.prototype.toJSON.call(this, options), options);
     },
   });
 };
