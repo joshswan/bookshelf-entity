@@ -23,10 +23,10 @@ function detectRelationsToLoad(entity, model, prefix = '') {
   if (!entity) return [];
 
   return entity.properties.reduce((relations, property) => {
-    const { key } = property;
+    const { key, using } = property;
 
-    if (!model || (!has(model.attributes, key) && !has(model.relations, key) && model[key])) {
-      return [...relations, `${prefix}${key}`, ...detectRelationsToLoad(model.using, model && model.relations[key], `${key}.`)];
+    if (using && (!model || (!has(model.relations, key) && model[key]))) {
+      relations.push(`${prefix}${key}`, ...detectRelationsToLoad(using, model && model.relations[key], `${key}.`));
     }
 
     return relations;
