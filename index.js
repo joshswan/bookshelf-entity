@@ -47,12 +47,14 @@ function performSafetyCheck(entity, model) {
     entity.properties.forEach((property) => {
       // Throw an error if a "using" option isn't specified as this could lead to unintended
       // data leaks since the entire relation would be exposed!
-      if (relation === property.key && !property.using) {
-        throw new Error(`Entity has an exposed relation "${relation}" that does not have a "using" option specified!`);
-      }
+      if (relation === property.key) {
+        if (!property.using) {
+          throw new Error(`Entity has an exposed relation "${relation}" that does not have a "using" option specified!`);
+        }
 
-      // Perform safety check on relations recursively
-      performSafetyCheck(property.using, model.relations[relation]);
+        // Perform safety check on relations recursively
+        performSafetyCheck(property.using, model.relations[relation]);
+      }
     });
   });
 }
