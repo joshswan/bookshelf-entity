@@ -25,8 +25,12 @@ function detectRelationsToLoad(entity, model, prefix = '') {
   return entity.properties.reduce((relations, property) => {
     const { key, using } = property;
 
-    if (using && (!model || (!has(model.relations, key) && model[key]))) {
-      relations.push(`${prefix}${key}`, ...detectRelationsToLoad(using, model && model.relations[key], `${key}.`));
+    if (using) {
+      if (!model || (!has(model.relations, key) && model[key])) {
+        relations.push(`${prefix}${key}`);
+      }
+
+      relations.push(...detectRelationsToLoad(using, model && model.relations[key], `${key}.`));
     }
 
     return relations;
