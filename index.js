@@ -30,7 +30,7 @@ function detectRelationsToLoad(entity, model, prefix = '') {
         relations.push(`${prefix}${key}`);
       }
 
-      relations.push(...detectRelationsToLoad(using, model && model.relations[key], `${key}.`));
+      relations.push(...detectRelationsToLoad(using, model && model.relations[key], `${prefix}${key}.`));
     }
 
     return relations;
