@@ -1,7 +1,7 @@
 /*!
  * Bookshelf-Entity
  *
- * Copyright 2017 Josh Swan
+ * Copyright 2017-2018 Josh Swan
  * Released under the MIT license
  * https://github.com/joshswan/bookshelf-entity/blob/master/LICENSE
  */
