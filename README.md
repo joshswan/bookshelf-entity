@@ -13,7 +13,9 @@ npm install bookshelf-entity --save
 
 Apply the plugin:
 ```javascript
-bookshelf.plugin('bookshelf-entity');
+const entity = require('bookshelf-entity');
+
+bookshelf.plugin(entity);
 ```
 
 Define an Entity:
